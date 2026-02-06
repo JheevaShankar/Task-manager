@@ -1,0 +1,33 @@
+# MongoDB
+/data
+*.log
+
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Build
+dist/
+build/
+coverage/
+
+# Misc
+*.pem
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
