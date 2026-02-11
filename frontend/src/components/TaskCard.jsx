@@ -17,14 +17,14 @@ const TaskCard = ({ task, onEdit, onDelete }) => {
         <h3 className="font-semibold text-gray-900 flex-1">{task.title}</h3>
         <div className="flex items-center space-x-1">
           <button
-            onClick={onEdit}
+            onClick={() => onEdit(task)}
             className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
             title="Edit task"
           >
             <Edit className="w-4 h-4" />
           </button>
           <button
-            onClick={onDelete}
+            onClick={() => onDelete(task._id)}
             className="p-1 text-gray-400 hover:text-red-600 transition-colors"
             title="Delete task"
           >
@@ -45,13 +45,6 @@ const TaskCard = ({ task, onEdit, onDelete }) => {
           <span className={`text-xs px-2 py-1 rounded border ${priorityColors[task.priority]}`}>
             {task.priority} Priority
           </span>
-          
-          {task.aiPriorityScore && (
-            <div className="flex items-center space-x-1 text-xs text-gray-600">
-              <Flag className="w-3 h-3" />
-              <span>AI Score: {task.aiPriorityScore}</span>
-            </div>
-          )}
         </div>
 
         {/* Deadline */}

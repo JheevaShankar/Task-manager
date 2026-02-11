@@ -53,9 +53,14 @@ export const taskAPI = {
   deleteTask: (id) => api.delete(`/tasks/${id}`),
   updateTaskStatus: (id, data) => api.put(`/tasks/${id}/status`, data),
   updateStatus: (id, status) => api.put(`/tasks/${id}/status`, { status }),
-  recalculatePriority: (id) => api.put(`/tasks/${id}/priority`),
   addComment: (id, data) => api.post(`/tasks/${id}/comments`, data),
-  updateTaskOrder: (tasks) => api.put('/tasks/bulk/update-order', { tasks })
+  updateTaskOrder: (tasks) => api.put('/tasks/bulk/update-order', { tasks }),
+  
+  // Submission APIs
+  submitTask: (id, data) => api.post(`/tasks/${id}/submit`, data),
+  acceptSubmission: (id, data) => api.put(`/tasks/${id}/accept`, data),
+  rejectSubmission: (id, data) => api.put(`/tasks/${id}/reject`, data),
+  getPendingSubmissions: () => api.get('/tasks/submissions/pending')
 };
 
 // Analytics APIs

@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LayoutDashboard, KanbanSquare, BarChart3, LogOut, User } from 'lucide-react';
+import { LayoutDashboard, KanbanSquare, BarChart3, LogOut, User, ClipboardCheck } from 'lucide-react';
 
 const Layout = () => {
   const { user, logout } = useAuth();
@@ -11,6 +11,7 @@ const Layout = () => {
     ? [
         { name: 'Dashboard', path: '/manager/dashboard', icon: LayoutDashboard },
         { name: 'Kanban Board', path: '/manager/kanban', icon: KanbanSquare },
+        { name: 'Review Submissions', path: '/manager/review', icon: ClipboardCheck },
         { name: 'Analytics', path: '/manager/analytics', icon: BarChart3 }
       ]
     : [

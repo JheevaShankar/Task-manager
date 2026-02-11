@@ -89,3 +89,96 @@ exports.sendReminder = async (req, res) => {
     });
   }
 };
+
+// @desc    Get submission notifications for managers
+// @route   GET /api/notifications/submissions
+// @access  Private (Manager)
+exports.getSubmissionNotifications = async (req, res) => {
+  try {
+    if (req.user.role !== 'MANAGER') {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Only managers can access submission notifications'
+      });
+    }
+
+    // Get pending submissions
+    const pendingSubmissions = await Task.find({
+      assignedBy: req.user._id,
+      submissionStatus: 'Pending Review',
+      isArchived: false
+    })
+    .sort({ submissionDate: -1 })
+    .populate('assignedTo', 'name email')
+    .select('title submissionDate assignedTo');
+
+    // Get recently accepted/rejected submissions (last 7 days)
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+
+    const recentReviews = await Task.find({
+      assignedBy: req.user._id,
+      submissionStatus: { $in: ['Accepted', 'Rejected'] },
+      submissionDate: { $gte: weekAgo },
+      isArchived: false
+    })
+    .sort({ submissionDate: -1 })
+    .populate('assignedTo', 'name email')
+    .select('title submissionDate submissionStatus assignedTo');
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        pendingCount: pendingSubmissions.length,
+        pendingSubmissions,
+        recentReviews
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
+  }
+};
+
+// @desc    Get task status notifications for team members
+// @route   GET /api/notifications/task-status
+// @access  Private (Team Member)
+exports.getTaskStatusNotifications = async (req, res) => {
+  try {
+    if (req.user.role !== 'TEAM_MEMBER') {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Only team members can access task status notifications'
+      });
+    }
+
+    // Get tasks with feedback (accepted/rejected in last 7 days)
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+
+    const taskUpdates = await Task.find({
+      assignedTo: req.user._id,
+      submissionStatus: { $in: ['Accepted', 'Rejected'] },
+      submissionDate: { $gte: weekAgo },
+      isArchived: false
+    })
+    .sort({ submissionDate: -1 })
+    .populate('assignedBy', 'name email')
+    .select('title submissionDate submissionStatus managerFeedback assignedBy');
+
+    res.status(200).json({
+      status: 'success',
+      results: taskUpdates.length,
+      data: {
+        taskUpdates
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
+  }
+};

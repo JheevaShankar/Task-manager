@@ -22,12 +22,6 @@ const taskSchema = new mongoose.Schema({
     enum: ['High', 'Medium', 'Low'],
     default: 'Medium'
   },
-  aiPriorityScore: {
-    type: Number,
-    min: 0,
-    max: 100,
-    default: 50
-  },
   deadline: {
     type: Date,
     required: false
@@ -79,6 +73,41 @@ const taskSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  submittedCode: {
+    type: String,
+    default: ''
+  },
+  submittedFiles: [{
+    name: String,
+    url: String,
+    uploadedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+  submissionStatus: {
+    type: String,
+    enum: ['Not Submitted', 'Pending Review', 'Accepted', 'Rejected'],
+    default: 'Not Submitted'
+  },
+  submissionDate: {
+    type: Date
+  },
+  managerFeedback: {
+    type: String,
+    default: ''
+  },
+  revisionHistory: [{
+    submittedCode: String,
+    submittedFiles: [{
+      name: String,
+      url: String
+    }],
+    submissionDate: Date,
+    status: String,
+    feedback: String,
+    reviewedAt: Date
+  }],
   subtasks: [{
     title: String,
     completed: {
@@ -112,7 +141,7 @@ const taskSchema = new mongoose.Schema({
 // Indexes for better query performance
 taskSchema.index({ user: 1, status: 1 });
 taskSchema.index({ user: 1, deadline: 1 });
-taskSchema.index({ priority: 1, aiPriorityScore: -1 });
+taskSchema.index({ submissionStatus: 1, assignedBy: 1 });
 
 // Update completedAt when status changes to Done
 taskSchema.pre('save', function(next) {

@@ -1,6 +1,5 @@
 const { validationResult } = require('express-validator');
 const Task = require('../models/Task.model');
-const { calculateAIPriority } = require('../services/ai-priority.service');
 
 // Helper function to check and update overdue tasks
 const checkOverdue = (task) => {
@@ -41,7 +40,7 @@ exports.getTasks = async (req, res) => {
     // Build sort
     let sort = {};
     if (sortBy === 'priority') {
-      sort = { aiPriorityScore: -1, deadline: 1 };
+      sort = { deadline: 1 };
     } else if (sortBy === 'deadline') {
       sort = { deadline: 1 };
     } else {
@@ -153,19 +152,6 @@ exports.createTask = async (req, res) => {
     req.body.user = req.user._id;
     req.body.assignedBy = req.user._id;
 
-    // Calculate AI priority
-    const aiPriorityScore = await calculateAIPriority(req.body);
-    req.body.aiPriorityScore = aiPriorityScore;
-
-    // Auto-set priority based on AI score
-    if (aiPriorityScore >= 75) {
-      req.body.priority = 'High';
-    } else if (aiPriorityScore >= 40) {
-      req.body.priority = 'Medium';
-    } else {
-      req.body.priority = 'Low';
-    }
-
     const task = await Task.create(req.body);
     await task.populate('assignedTo', 'name email role');
     await task.populate('assignedBy', 'name email role');
@@ -204,13 +190,6 @@ exports.updateTask = async (req, res) => {
         status: 'error',
         message: 'Only the manager who created this task can update it'
       });
-    }
-
-    // Recalculate AI priority if certain fields changed
-    if (req.body.deadline || req.body.category || req.body.estimatedTime) {
-      const taskData = { ...task.toObject(), ...req.body };
-      const aiPriorityScore = await calculateAIPriority(taskData);
-      req.body.aiPriorityScore = aiPriorityScore;
     }
 
     task = await Task.findByIdAndUpdate(req.params.id, req.body, {
@@ -342,56 +321,6 @@ exports.updateTaskStatus = async (req, res) => {
   }
 };
 
-// @desc    Recalculate AI priority
-// @route   PUT /api/tasks/:id/priority
-// @access  Private
-exports.recalculatePriority = async (req, res) => {
-  try {
-    const task = await Task.findById(req.params.id);
-
-    if (!task) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Task not found'
-      });
-    }
-
-    // Check if user owns the task
-    if (task.user.toString() !== req.user._id.toString()) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'Not authorized to update this task'
-      });
-    }
-
-    const aiPriorityScore = await calculateAIPriority(task);
-    task.aiPriorityScore = aiPriorityScore;
-
-    // Update priority based on score
-    if (aiPriorityScore >= 75) {
-      task.priority = 'High';
-    } else if (aiPriorityScore >= 40) {
-      task.priority = 'Medium';
-    } else {
-      task.priority = 'Low';
-    }
-
-    await task.save();
-
-    res.status(200).json({
-      status: 'success',
-      data: {
-        task
-      }
-    });
-  } catch (error) {
-    res.status(500).json({
-      status: 'error',
-      message: error.message
-    });
-  }
-};
-
 // @desc    Add comment to task
 // @route   POST /api/tasks/:id/comments
 // @access  Private
@@ -453,6 +382,242 @@ exports.updateTaskOrder = async (req, res) => {
     res.status(200).json({
       status: 'success',
       message: 'Task order updated successfully'
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
+  }
+};
+
+// @desc    Submit task solution (Team member)
+// @route   POST /api/tasks/:id/submit
+// @access  Private (Team Member)
+exports.submitTaskSolution = async (req, res) => {
+  try {
+    const { submittedCode, submittedFiles } = req.body;
+
+    // Validate that code or files are provided
+    if (!submittedCode?.trim() && (!submittedFiles || submittedFiles.length === 0)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Please provide code or files before submitting'
+      });
+    }
+
+    const task = await Task.findById(req.params.id);
+
+    if (!task) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Task not found'
+      });
+    }
+
+    // Only assigned team member can submit
+    if (task.assignedTo.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Only the assigned team member can submit this task'
+      });
+    }
+
+    // Save previous submission to revision history if exists
+    if (task.submittedCode || (task.submittedFiles && task.submittedFiles.length > 0)) {
+      task.revisionHistory.push({
+        submittedCode: task.submittedCode,
+        submittedFiles: task.submittedFiles,
+        submissionDate: task.submissionDate,
+        status: task.submissionStatus,
+        feedback: task.managerFeedback,
+        reviewedAt: new Date()
+      });
+    }
+
+    // Update task with new submission
+    task.submittedCode = submittedCode || '';
+    task.submittedFiles = submittedFiles || [];
+    task.submissionStatus = 'Pending Review';
+    task.submissionDate = new Date();
+    task.managerFeedback = '';
+
+    await task.save();
+    await task.populate('assignedTo', 'name email role');
+    await task.populate('assignedBy', 'name email role');
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Task submitted successfully',
+      data: {
+        task
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
+  }
+};
+
+// @desc    Get pending submissions (Manager)
+// @route   GET /api/tasks/submissions/pending
+// @access  Private (Manager)
+exports.getPendingSubmissions = async (req, res) => {
+  try {
+    // Only managers can access this
+    if (req.user.role !== 'MANAGER') {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Only managers can view pending submissions'
+      });
+    }
+
+    const pendingTasks = await Task.find({
+      assignedBy: req.user._id,
+      submissionStatus: 'Pending Review',
+      isArchived: false
+    })
+      .sort({ submissionDate: -1 })
+      .populate('assignedTo', 'name email role')
+      .populate('assignedBy', 'name email role');
+
+    res.status(200).json({
+      status: 'success',
+      results: pendingTasks.length,
+      data: {
+        tasks: pendingTasks
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
+  }
+};
+
+// @desc    Accept task submission (Manager)
+// @route   PUT /api/tasks/:id/accept
+// @access  Private (Manager)
+exports.acceptSubmission = async (req, res) => {
+  try {
+    const task = await Task.findById(req.params.id);
+
+    if (!task) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Task not found'
+      });
+    }
+
+    // Only manager who created the task can accept
+    if (req.user.role !== 'MANAGER' || task.assignedBy.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Only the manager who created this task can accept it'
+      });
+    }
+
+    // Check if task has a submission
+    if (task.submissionStatus !== 'Pending Review') {
+      return res.status(400).json({
+        status: 'error',
+        message: 'This task does not have a pending submission'
+      });
+    }
+
+    // Accept the submission
+    task.submissionStatus = 'Accepted';
+    task.status = 'Done';
+    task.completedAt = new Date();
+    task.completedBeforeDeadline = task.deadline ? new Date() <= new Date(task.deadline) : null;
+    task.managerFeedback = req.body.feedback || 'Accepted';
+
+    await task.save();
+    await task.populate('assignedTo', 'name email role');
+    await task.populate('assignedBy', 'name email role');
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Task submission accepted',
+      data: {
+        task
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
+  }
+};
+
+// @desc    Reject task submission (Manager)
+// @route   PUT /api/tasks/:id/reject
+// @access  Private (Manager)
+exports.rejectSubmission = async (req, res) => {
+  try {
+    const { feedback } = req.body;
+
+    if (!feedback) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Please provide feedback for rejection'
+      });
+    }
+
+    const task = await Task.findById(req.params.id);
+
+    if (!task) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Task not found'
+      });
+    }
+
+    // Only manager who created the task can reject
+    if (req.user.role !== 'MANAGER' || task.assignedBy.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Only the manager who created this task can reject it'
+      });
+    }
+
+    // Check if task has a submission
+    if (task.submissionStatus !== 'Pending Review') {
+      return res.status(400).json({
+        status: 'error',
+        message: 'This task does not have a pending submission'
+      });
+    }
+
+    // Save to revision history
+    task.revisionHistory.push({
+      submittedCode: task.submittedCode,
+      submittedFiles: task.submittedFiles,
+      submissionDate: task.submissionDate,
+      status: 'Rejected',
+      feedback: feedback,
+      reviewedAt: new Date()
+    });
+
+    // Reject the submission
+    task.submissionStatus = 'Rejected';
+    task.status = 'In-Progress'; // Send back to in-progress
+    task.managerFeedback = feedback;
+
+    await task.save();
+    await task.populate('assignedTo', 'name email role');
+    await task.populate('assignedBy', 'name email role');
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Task submission rejected',
+      data: {
+        task
+      }
     });
   } catch (error) {
     res.status(500).json({

@@ -40,3 +40,32 @@ code {
 ::-webkit-scrollbar-thumb:hover {
   background: #555;
 }
+
+/* PWA Install Prompt Animation */
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s ease-out;
+}
+
+/* Offline indicator */
+.offline-indicator {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #f59e0b;
+  color: white;
+  text-align: center;
+  padding: 0.5rem;
+  z-index: 9999;
+}

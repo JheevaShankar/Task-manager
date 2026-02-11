@@ -8,6 +8,18 @@ const router = express.Router();
 // All routes are protected
 router.use(protect);
 
+// IMPORTANT: Specific routes must come before parameterized routes to avoid conflicts
+
+// @route   GET /api/tasks/submissions/pending
+// @desc    Get pending submissions (Manager)
+// @access  Private (Manager)
+router.get('/submissions/pending', taskController.getPendingSubmissions);
+
+// @route   PUT /api/tasks/bulk/update-order
+// @desc    Update task order (for Kanban drag & drop)
+// @access  Private
+router.put('/bulk/update-order', taskController.updateTaskOrder);
+
 // @route   GET /api/tasks
 // @desc    Get all tasks for user
 // @access  Private
@@ -40,19 +52,24 @@ router.delete('/:id', taskController.deleteTask);
 // @access  Private
 router.put('/:id/status', taskController.updateTaskStatus);
 
-// @route   PUT /api/tasks/:id/priority
-// @desc    Recalculate AI priority
-// @access  Private
-router.put('/:id/priority', taskController.recalculatePriority);
-
 // @route   POST /api/tasks/:id/comments
 // @desc    Add comment to task
 // @access  Private
 router.post('/:id/comments', taskController.addComment);
 
-// @route   PUT /api/tasks/bulk/update-order
-// @desc    Update task order (for Kanban drag & drop)
-// @access  Private
-router.put('/bulk/update-order', taskController.updateTaskOrder);
+// @route   POST /api/tasks/:id/submit
+// @desc    Submit task solution (Team member)
+// @access  Private (Team Member)
+router.post('/:id/submit', taskController.submitTaskSolution);
+
+// @route   PUT /api/tasks/:id/accept
+// @desc    Accept task submission (Manager)
+// @access  Private (Manager)
+router.put('/:id/accept', taskController.acceptSubmission);
+
+// @route   PUT /api/tasks/:id/reject
+// @desc    Reject task submission (Manager)
+// @access  Private (Manager)
+router.put('/:id/reject', taskController.rejectSubmission);
 
 module.exports = router;

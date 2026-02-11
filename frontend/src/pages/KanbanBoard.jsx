@@ -201,13 +201,6 @@ const KanbanTaskCard = ({ task }) => {
             <span>{format(new Date(task.deadline), 'MMM d')}</span>
           </div>
         )}
-        
-        {task.aiPriorityScore && (
-          <div className="flex items-center space-x-1">
-            <Flag className="w-3 h-3" />
-            <span>AI: {task.aiPriorityScore}</span>
-          </div>
-        )}
       </div>
     </div>
   );

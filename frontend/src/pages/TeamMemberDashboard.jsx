@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react';
 import { taskAPI } from '../services/api';
-import { Clock, CheckCircle2, AlertCircle, PlayCircle } from 'lucide-react';
+import { Clock, CheckCircle2, AlertCircle, PlayCircle, Code } from 'lucide-react';
 import toast from 'react-hot-toast';
+import TaskWorkspace from '../components/TaskWorkspace';
 
 const TeamMemberDashboard = () => {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState('all');
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [showWorkspace, setShowWorkspace] = useState(false);
 
   useEffect(() => {
     fetchTasks();
@@ -42,6 +45,20 @@ const TeamMemberDashboard = () => {
     } catch (error) {
       toast.error('Failed to add comment');
     }
+  };
+
+  const handleOpenWorkspace = (task) => {
+    setSelectedTask(task);
+    setShowWorkspace(true);
+  };
+
+  const handleCloseWorkspace = () => {
+    setShowWorkspace(false);
+    setSelectedTask(null);
+  };
+
+  const handleSubmitSuccess = () => {
+    fetchTasks();
   };
 
   const filteredTasks = filterStatus === 'all' 
@@ -123,6 +140,7 @@ const TeamMemberDashboard = () => {
             task={task}
             onStatusUpdate={handleStatusUpdate}
             onAddComment={handleAddComment}
+            onOpenWorkspace={handleOpenWorkspace}
           />
         ))}
       </div>
@@ -131,6 +149,15 @@ const TeamMemberDashboard = () => {
         <div className="text-center py-12 bg-white rounded-lg shadow">
           <p className="text-gray-500 text-lg">No tasks found</p>
         </div>
+      )}
+
+      {/* Task Workspace Modal */}
+      {showWorkspace && (
+        <TaskWorkspace
+          task={selectedTask}
+          onClose={handleCloseWorkspace}
+          onSubmit={handleSubmitSuccess}
+        />
       )}
     </div>
   );
@@ -162,7 +189,7 @@ const StatCard = ({ title, value, color, icon: Icon }) => {
 };
 
 // Team Task Card Component
-const TeamTaskCard = ({ task, onStatusUpdate, onAddComment }) => {
+const TeamTaskCard = ({ task, onStatusUpdate, onAddComment, onOpenWorkspace }) => {
   const [showCommentInput, setShowCommentInput] = useState(false);
   const [comment, setComment] = useState('');
 
@@ -211,6 +238,16 @@ const TeamTaskCard = ({ task, onStatusUpdate, onAddComment }) => {
             <span className={`text-sm font-medium ${priorityColors[task.priority]}`}>
               {task.priority} Priority
             </span>
+            {task.submissionStatus && task.submissionStatus !== 'Not Submitted' && (
+              <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                task.submissionStatus === 'Pending Review' ? 'bg-blue-100 text-blue-700' :
+                task.submissionStatus === 'Accepted' ? 'bg-green-100 text-green-700' :
+                task.submissionStatus === 'Rejected' ? 'bg-red-100 text-red-700' :
+                'bg-gray-100 text-gray-700'
+              }`}>
+                📝 {task.submissionStatus}
+              </span>
+            )}
             {task.deadline && (
               <span className="text-sm text-gray-600">
                 📅 Due: {formatDate(task.deadline)}
@@ -225,35 +262,47 @@ const TeamTaskCard = ({ task, onStatusUpdate, onAddComment }) => {
         </div>
       </div>
 
-      {/* Status Update Buttons */}
-      {task.status !== 'Done' && task.status !== 'Overdue' && (
-        <div className="flex space-x-2 mb-4">
-          {task.status === 'To-Do' && (
-            <button
-              onClick={() => onStatusUpdate(task._id, 'In-Progress')}
-              className="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors text-sm"
-            >
-              Start Task
-            </button>
-          )}
-          {task.status === 'In-Progress' && (
-            <>
-              <button
-                onClick={() => onStatusUpdate(task._id, 'To-Do')}
-                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm"
-              >
-                Move to To-Do
-              </button>
-              <button
-                onClick={() => onStatusUpdate(task._id, 'Done')}
-                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm"
-              >
-                Mark Complete
-              </button>
-            </>
-          )}
+      {/* Manager Feedback */}
+      {task.managerFeedback && task.submissionStatus === 'Rejected' && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-xs font-semibold text-red-900 mb-1">Manager Feedback:</p>
+          <p className="text-sm text-red-800">{task.managerFeedback}</p>
         </div>
       )}
+
+      {/* Status Update Buttons */}
+      <div className="flex flex-wrap gap-2 mb-4">
+        <button
+          onClick={() => onOpenWorkspace(task)}
+          className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm flex items-center gap-2"
+        >
+          <Code size={16} />
+          {task.submissionStatus === 'Not Submitted' ? 'Open Workspace' : 'View Submission'}
+        </button>
+        
+        {task.status !== 'Done' && task.status !== 'Overdue' && (
+          <>
+            {task.status === 'To-Do' && (
+              <button
+                onClick={() => onStatusUpdate(task._id, 'In-Progress')}
+                className="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors text-sm"
+              >
+                Start Task
+              </button>
+            )}
+            {task.status === 'In-Progress' && (
+              <>
+                <button
+                  onClick={() => onStatusUpdate(task._id, 'To-Do')}
+                  className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm"
+                >
+                  Move to To-Do
+                </button>
+              </>
+            )}
+          </>
+        )}
+      </div>
 
       {/* Comments Section */}
       <div className="border-t pt-4">

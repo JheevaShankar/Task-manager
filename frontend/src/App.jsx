@@ -6,7 +6,10 @@ import ManagerDashboard from './pages/ManagerDashboard';
 import TeamMemberDashboard from './pages/TeamMemberDashboard';
 import KanbanBoard from './pages/KanbanBoard';
 import Analytics from './pages/Analytics';
+import ManagerReviewDashboard from './pages/ManagerReviewDashboard';
 import Layout from './components/Layout';
+import PWAInstallPrompt from './components/PWAInstallPrompt';
+import OfflineIndicator from './components/OfflineIndicator';
 
 function App() {
   const { user, loading } = useAuth();
@@ -20,7 +23,8 @@ function App() {
   }
 
   return (
-    <Routes>
+    <>
+      <Routes>
       <Route path="/login" element={!user ? <Login /> : <Navigate to={user.role === 'MANAGER' ? '/manager/dashboard' : '/team/dashboard'} />} />
       <Route path="/register" element={!user ? <Register /> : <Navigate to={user.role === 'MANAGER' ? '/manager/dashboard' : '/team/dashboard'} />} />
       
@@ -31,6 +35,7 @@ function App() {
           <Route path="dashboard" element={<ManagerDashboard />} />
           <Route path="kanban" element={<KanbanBoard />} />
           <Route path="analytics" element={<Analytics />} />
+          <Route path="review" element={<ManagerReviewDashboard />} />
         </Route>
       )}
 
@@ -50,6 +55,13 @@ function App() {
         user ? <Navigate to={user.role === 'MANAGER' ? '/manager/dashboard' : '/team/dashboard'} /> : <Navigate to="/login" />
       } />
     </Routes>
+    
+    {/* PWA Install Prompt */}
+    <PWAInstallPrompt />
+    
+    {/* Offline Indicator */}
+    <OfflineIndicator />
+    </>
   );
 }
 

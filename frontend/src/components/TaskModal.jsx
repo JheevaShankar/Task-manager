@@ -287,16 +287,6 @@ const TaskModal = ({ task, teamMembers = [], onClose, onSave }) => {
             </div>
           </div>
 
-          {/* AI Priority Notice */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <div className="flex items-start space-x-2">
-              <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5" />
-              <div className="text-sm text-blue-800">
-                <strong>AI Priority Engine:</strong> Your task priority will be automatically calculated based on deadline, category, and estimated time.
-              </div>
-            </div>
-          </div>
-
           {/* Actions */}
           <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
             <button
