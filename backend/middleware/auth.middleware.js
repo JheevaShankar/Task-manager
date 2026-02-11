@@ -52,3 +52,25 @@ exports.authorize = (...roles) => {
     next();
   };
 };
+
+// Require MANAGER role
+exports.requireManager = (req, res, next) => {
+  if (req.user.role !== 'MANAGER') {
+    return res.status(403).json({
+      status: 'error',
+      message: 'Only managers can perform this action'
+    });
+  }
+  next();
+};
+
+// Require TEAM_MEMBER role
+exports.requireTeamMember = (req, res, next) => {
+  if (req.user.role !== 'TEAM_MEMBER') {
+    return res.status(403).json({
+      status: 'error',
+      message: 'Only team members can perform this action'
+    });
+  }
+  next();
+};

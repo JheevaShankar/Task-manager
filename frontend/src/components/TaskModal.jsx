@@ -1,17 +1,18 @@
 import { useState, useEffect } from 'react';
 import { taskAPI } from '../services/api';
-import { X, Calendar, Tag, Clock, AlertCircle } from 'lucide-react';
+import { X, Calendar, Tag, Clock, AlertCircle, User } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const TaskModal = ({ task, onClose, onSave }) => {
+const TaskModal = ({ task, teamMembers = [], onClose, onSave }) => {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    status: 'Todo',
+    status: 'To-Do',
     priority: 'Medium',
     category: 'Other',
     deadline: '',
     estimatedTime: '',
+    assignedTo: '',
     tags: []
   });
   const [loading, setLoading] = useState(false);
@@ -22,11 +23,12 @@ const TaskModal = ({ task, onClose, onSave }) => {
       setFormData({
         title: task.title || '',
         description: task.description || '',
-        status: task.status || 'Todo',
+        status: task.status || 'To-Do',
         priority: task.priority || 'Medium',
         category: task.category || 'Other',
         deadline: task.deadline ? new Date(task.deadline).toISOString().split('T')[0] : '',
         estimatedTime: task.estimatedTime || '',
+        assignedTo: task.assignedTo?._id || '',
         tags: task.tags || []
       });
     }
@@ -144,8 +146,8 @@ const TaskModal = ({ task, onClose, onSave }) => {
                 onChange={handleChange}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
               >
-                <option value="Todo">To Do</option>
-                <option value="In Progress">In Progress</option>
+                <option value="To-Do">To-Do</option>
+                <option value="In-Progress">In Progress</option>
                 <option value="Done">Done</option>
               </select>
             </div>
@@ -166,6 +168,30 @@ const TaskModal = ({ task, onClose, onSave }) => {
               </select>
             </div>
           </div>
+
+          {/* Assign To Team Member (Manager Only) */}
+          {teamMembers && teamMembers.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                <User className="w-4 h-4 inline mr-1" />
+                Assign To *
+              </label>
+              <select
+                name="assignedTo"
+                value={formData.assignedTo}
+                onChange={handleChange}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                required
+              >
+                <option value="">Select team member...</option>
+                {teamMembers.map(member => (
+                  <option key={member._id} value={member._id}>
+                    {member.name} ({member.email})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Category and Estimated Time */}
           <div className="grid grid-cols-2 gap-4">

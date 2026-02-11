@@ -2,7 +2,8 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import Login from './pages/Login';
 import Register from './pages/Register';
-import Dashboard from './pages/Dashboard';
+import ManagerDashboard from './pages/ManagerDashboard';
+import TeamMemberDashboard from './pages/TeamMemberDashboard';
 import KanbanBoard from './pages/KanbanBoard';
 import Analytics from './pages/Analytics';
 import Layout from './components/Layout';
@@ -20,17 +21,34 @@ function App() {
 
   return (
     <Routes>
-      <Route path="/login" element={!user ? <Login /> : <Navigate to="/dashboard" />} />
-      <Route path="/register" element={!user ? <Register /> : <Navigate to="/dashboard" />} />
+      <Route path="/login" element={!user ? <Login /> : <Navigate to={user.role === 'MANAGER' ? '/manager/dashboard' : '/team/dashboard'} />} />
+      <Route path="/register" element={!user ? <Register /> : <Navigate to={user.role === 'MANAGER' ? '/manager/dashboard' : '/team/dashboard'} />} />
       
-      <Route path="/" element={user ? <Layout /> : <Navigate to="/login" />}>
-        <Route index element={<Navigate to="/dashboard" />} />
-        <Route path="dashboard" element={<Dashboard />} />
-        <Route path="kanban" element={<KanbanBoard />} />
-        <Route path="analytics" element={<Analytics />} />
-      </Route>
+      {/* Manager Routes */}
+      {user?.role === 'MANAGER' && (
+        <Route path="/manager" element={<Layout />}>
+          <Route index element={<Navigate to="/manager/dashboard" />} />
+          <Route path="dashboard" element={<ManagerDashboard />} />
+          <Route path="kanban" element={<KanbanBoard />} />
+          <Route path="analytics" element={<Analytics />} />
+        </Route>
+      )}
+
+      {/* Team Member Routes */}
+      {user?.role === 'TEAM_MEMBER' && (
+        <Route path="/team" element={<Layout />}>
+          <Route index element={<Navigate to="/team/dashboard" />} />
+          <Route path="dashboard" element={<TeamMemberDashboard />} />
+        </Route>
+      )}
       
-      <Route path="*" element={<Navigate to={user ? "/dashboard" : "/login"} />} />
+      {/* Default redirects */}
+      <Route path="/" element={
+        user ? <Navigate to={user.role === 'MANAGER' ? '/manager/dashboard' : '/team/dashboard'} /> : <Navigate to="/login" />
+      } />
+      <Route path="*" element={
+        user ? <Navigate to={user.role === 'MANAGER' ? '/manager/dashboard' : '/team/dashboard'} /> : <Navigate to="/login" />
+      } />
     </Routes>
   );
 }

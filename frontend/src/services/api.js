@@ -51,9 +51,10 @@ export const taskAPI = {
   createTask: (data) => api.post('/tasks', data),
   updateTask: (id, data) => api.put(`/tasks/${id}`, data),
   deleteTask: (id) => api.delete(`/tasks/${id}`),
+  updateTaskStatus: (id, data) => api.put(`/tasks/${id}/status`, data),
   updateStatus: (id, status) => api.put(`/tasks/${id}/status`, { status }),
   recalculatePriority: (id) => api.put(`/tasks/${id}/priority`),
-  addComment: (id, text) => api.post(`/tasks/${id}/comments`, { text }),
+  addComment: (id, data) => api.post(`/tasks/${id}/comments`, data),
   updateTaskOrder: (tasks) => api.put('/tasks/bulk/update-order', { tasks })
 };
 

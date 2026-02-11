@@ -6,11 +6,16 @@ const Layout = () => {
   const { user, logout } = useAuth();
   const location = useLocation();
 
-  const navigation = [
-    { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-    { name: 'Kanban Board', path: '/kanban', icon: KanbanSquare },
-    { name: 'Analytics', path: '/analytics', icon: BarChart3 }
-  ];
+  // Navigation based on role
+  const navigation = user?.role === 'MANAGER' 
+    ? [
+        { name: 'Dashboard', path: '/manager/dashboard', icon: LayoutDashboard },
+        { name: 'Kanban Board', path: '/manager/kanban', icon: KanbanSquare },
+        { name: 'Analytics', path: '/manager/analytics', icon: BarChart3 }
+      ]
+    : [
+        { name: 'My Tasks', path: '/team/dashboard', icon: LayoutDashboard }
+      ];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -27,7 +32,12 @@ const Layout = () => {
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-2">
                 <User className="w-5 h-5 text-gray-500" />
-                <span className="text-sm font-medium text-gray-700">{user?.name}</span>
+                <div>
+                  <span className="text-sm font-medium text-gray-700">{user?.name}</span>
+                  <span className="ml-2 text-xs px-2 py-1 rounded-full bg-primary-100 text-primary-700">
+                    {user?.role === 'MANAGER' ? 'Manager' : 'Team Member'}
+                  </span>
+                </div>
               </div>
               <button
                 onClick={logout}

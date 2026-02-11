@@ -39,14 +39,16 @@ exports.checkDeadlines = async () => {
       },
       reminderSent: false,
       isArchived: false
-    }).populate('user', 'name email preferences');
+    })
+    .populate('assignedTo', 'name email preferences')
+    .populate('assignedBy', 'name email');
 
     console.log(`Found ${upcomingTasks.length} tasks with approaching deadlines`);
 
     // Send reminders
     for (const task of upcomingTasks) {
-      // Check if user has email notifications enabled
-      if (task.user && task.user.preferences && task.user.preferences.emailNotifications) {
+      // Send notification to the team member who has to complete the task
+      if (task.assignedTo && task.assignedTo.preferences && task.assignedTo.preferences.emailNotifications) {
         await this.sendDeadlineReminder(task);
         
         // Mark reminder as sent
@@ -66,8 +68,9 @@ exports.checkDeadlines = async () => {
  */
 exports.sendDeadlineReminder = async (task) => {
   try {
-    if (!task.user || !task.user.email) {
-      console.log('No user email found for task:', task._id);
+    // Send reminder to the person who needs to complete the task (assignedTo)
+    if (!task.assignedTo || !task.assignedTo.email) {
+      console.log('No assignedTo user email found for task:', task._id);
       return;
     }
 
@@ -76,12 +79,12 @@ exports.sendDeadlineReminder = async (task) => {
 
     const emailContent = {
       from: process.env.EMAIL_FROM || 'noreply@smarttaskmanager.com',
-      to: task.user.email,
+      to: task.assignedTo.email,
       subject: `⏰ Reminder: Task "${task.title}" is due soon`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2 style="color: #333;">Task Deadline Reminder</h2>
-          <p>Hi ${task.user.name},</p>
+          <p>Hi ${task.assignedTo.name},</p>
           <p>This is a reminder that the following task is due soon:</p>
           
           <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
@@ -90,11 +93,12 @@ exports.sendDeadlineReminder = async (task) => {
             <p><strong>Priority:</strong> <span style="color: ${getPriorityColor(task.priority)}">${task.priority}</span></p>
             <p><strong>Deadline:</strong> ${formattedDeadline}</p>
             <p><strong>Status:</strong> ${task.status}</p>
+            ${task.assignedBy ? `<p><strong>Assigned By:</strong> ${task.assignedBy.name}</p>` : ''}
           </div>
           
           <p>Don't forget to complete this task before the deadline!</p>
           
-          <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/tasks/${task._id}" 
+          <a href="${process.env.FRONTEND_URL || 'http://localhost:3001'}/tasks/${task._id}" 
              style="display: inline-block; background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
             View Task
           </a>
@@ -110,10 +114,10 @@ exports.sendDeadlineReminder = async (task) => {
 
     if (transporter) {
       await transporter.sendMail(emailContent);
-      console.log(`✅ Reminder email sent to ${task.user.email} for task: ${task.title}`);
+      console.log(`✅ Reminder email sent to ${task.assignedTo.email} for task: ${task.title}`);
     } else {
       console.log('📧 [EMAIL WOULD BE SENT]:', {
-        to: task.user.email,
+        to: task.assignedTo.email,
         subject: emailContent.subject,
         taskId: task._id
       });
@@ -149,7 +153,7 @@ exports.sendTaskAssignmentNotification = async (task, assignedUser) => {
             ${task.deadline ? `<p><strong>Deadline:</strong> ${new Date(task.deadline).toLocaleString()}</p>` : ''}
           </div>
           
-          <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/tasks/${task._id}" 
+          <a href="${process.env.FRONTEND_URL || 'http://localhost:3001'}/tasks/${task._id}" 
              style="display: inline-block; background-color: #2196F3; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
             View Task
           </a>

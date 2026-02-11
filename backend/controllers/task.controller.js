@@ -2,6 +2,14 @@ const { validationResult } = require('express-validator');
 const Task = require('../models/Task.model');
 const { calculateAIPriority } = require('../services/ai-priority.service');
 
+// Helper function to check and update overdue tasks
+const checkOverdue = (task) => {
+  if (task.deadline && task.status !== 'Done' && new Date() > new Date(task.deadline)) {
+    task.status = 'Overdue';
+  }
+  return task;
+};
+
 // @desc    Get all tasks for user
 // @route   GET /api/tasks
 // @access  Private
@@ -9,8 +17,16 @@ exports.getTasks = async (req, res) => {
   try {
     const { status, priority, category, search, sortBy } = req.query;
 
-    // Build query
-    const query = { user: req.user._id, isArchived: false };
+    // Build query based on role
+    let query = { isArchived: false };
+
+    if (req.user.role === 'MANAGER') {
+      // Managers see all tasks they created
+      query.assignedBy = req.user._id;
+    } else {
+      // Team members only see tasks assigned to them
+      query.assignedTo = req.user._id;
+    }
 
     if (status) query.status = status;
     if (priority) query.priority = priority;
@@ -32,9 +48,16 @@ exports.getTasks = async (req, res) => {
       sort = { createdAt: -1 };
     }
 
-    const tasks = await Task.find(query)
+    let tasks = await Task.find(query)
       .sort(sort)
-      .populate('assignedTo', 'name email');
+      .populate('assignedTo', 'name email role')
+      .populate('assignedBy', 'name email role');
+
+    // Check and update overdue tasks
+    tasks = tasks.map(task => {
+      checkOverdue(task);
+      return task;
+    });
 
     res.status(200).json({
       status: 'success',
@@ -57,8 +80,8 @@ exports.getTasks = async (req, res) => {
 exports.getTask = async (req, res) => {
   try {
     const task = await Task.findById(req.params.id)
-      .populate('user', 'name email')
-      .populate('assignedTo', 'name email')
+      .populate('assignedBy', 'name email role')
+      .populate('assignedTo', 'name email role')
       .populate('comments.user', 'name email');
 
     if (!task) {
@@ -68,13 +91,19 @@ exports.getTask = async (req, res) => {
       });
     }
 
-    // Check if user owns the task
-    if (task.user._id.toString() !== req.user._id.toString()) {
+    // Check authorization: Manager who created it or team member assigned to it
+    const isManager = req.user.role === 'MANAGER' && task.assignedBy._id.toString() === req.user._id.toString();
+    const isAssignedTeamMember = req.user.role === 'TEAM_MEMBER' && task.assignedTo._id.toString() === req.user._id.toString();
+
+    if (!isManager && !isAssignedTeamMember) {
       return res.status(403).json({
         status: 'error',
         message: 'Not authorized to access this task'
       });
     }
+
+    // Check and update overdue status
+    checkOverdue(task);
 
     res.status(200).json({
       status: 'success',
@@ -90,11 +119,19 @@ exports.getTask = async (req, res) => {
   }
 };
 
-// @desc    Create new task
+// @desc    Create new task (Manager only)
 // @route   POST /api/tasks
-// @access  Private
+// @access  Private (Manager)
 exports.createTask = async (req, res) => {
   try {
+    // Only managers can create tasks
+    if (req.user.role !== 'MANAGER') {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Only managers can create tasks'
+      });
+    }
+
     // Validate request
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -104,8 +141,17 @@ exports.createTask = async (req, res) => {
       });
     }
 
-    // Add user to task data
+    // Validate assignedTo is provided
+    if (!req.body.assignedTo) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Please assign this task to a team member'
+      });
+    }
+
+    // Set user and assignedBy
     req.body.user = req.user._id;
+    req.body.assignedBy = req.user._id;
 
     // Calculate AI priority
     const aiPriorityScore = await calculateAIPriority(req.body);
@@ -121,6 +167,8 @@ exports.createTask = async (req, res) => {
     }
 
     const task = await Task.create(req.body);
+    await task.populate('assignedTo', 'name email role');
+    await task.populate('assignedBy', 'name email role');
 
     res.status(201).json({
       status: 'success',
@@ -136,9 +184,9 @@ exports.createTask = async (req, res) => {
   }
 };
 
-// @desc    Update task
+// @desc    Update task (Manager only)
 // @route   PUT /api/tasks/:id
-// @access  Private
+// @access  Private (Manager)
 exports.updateTask = async (req, res) => {
   try {
     let task = await Task.findById(req.params.id);
@@ -150,11 +198,11 @@ exports.updateTask = async (req, res) => {
       });
     }
 
-    // Check if user owns the task
-    if (task.user.toString() !== req.user._id.toString()) {
+    // Only manager who created the task can update it
+    if (req.user.role !== 'MANAGER' || task.assignedBy.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         status: 'error',
-        message: 'Not authorized to update this task'
+        message: 'Only the manager who created this task can update it'
       });
     }
 
@@ -168,7 +216,7 @@ exports.updateTask = async (req, res) => {
     task = await Task.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
       runValidators: true
-    });
+    }).populate('assignedTo', 'name email role').populate('assignedBy', 'name email role');
 
     res.status(200).json({
       status: 'success',
@@ -184,9 +232,9 @@ exports.updateTask = async (req, res) => {
   }
 };
 
-// @desc    Delete task
+// @desc    Delete task (Manager only)
 // @route   DELETE /api/tasks/:id
-// @access  Private
+// @access  Private (Manager)
 exports.deleteTask = async (req, res) => {
   try {
     const task = await Task.findById(req.params.id);
@@ -198,11 +246,11 @@ exports.deleteTask = async (req, res) => {
       });
     }
 
-    // Check if user owns the task
-    if (task.user.toString() !== req.user._id.toString()) {
+    // Only manager who created the task can delete it
+    if (req.user.role !== 'MANAGER' || task.assignedBy.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         status: 'error',
-        message: 'Not authorized to delete this task'
+        message: 'Only the manager who created this task can delete it'
       });
     }
 
@@ -220,7 +268,7 @@ exports.deleteTask = async (req, res) => {
   }
 };
 
-// @desc    Update task status
+// @desc    Update task status (Team members can only update their assigned tasks)
 // @route   PUT /api/tasks/:id/status
 // @access  Private
 exports.updateTaskStatus = async (req, res) => {
@@ -236,16 +284,49 @@ exports.updateTaskStatus = async (req, res) => {
       });
     }
 
-    // Check if user owns the task
-    if (task.user.toString() !== req.user._id.toString()) {
+    // Team members can only update status of tasks assigned to them
+    if (req.user.role === 'TEAM_MEMBER') {
+      if (task.assignedTo.toString() !== req.user._id.toString()) {
+        return res.status(403).json({
+          status: 'error',
+          message: 'You can only update tasks assigned to you'
+        });
+      }
+
+      // Team members can only update status, not other fields
+      // Prevent status updates to/from Overdue (system managed)
+      if (status === 'Overdue' || task.status === 'Overdue') {
+        return res.status(403).json({
+          status: 'error',
+          message: 'Cannot manually change overdue status'
+        });
+      }
+    }
+
+    // Managers can update status of tasks they created
+    if (req.user.role === 'MANAGER' && task.assignedBy.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         status: 'error',
-        message: 'Not authorized to update this task'
+        message: 'You can only update tasks you created'
       });
     }
 
+    const oldStatus = task.status;
     task.status = status;
+
+    // If task is marked as Done, record completion time
+    if (status === 'Done' && oldStatus !== 'Done') {
+      task.completedAt = new Date();
+      
+      // Check if completed before deadline
+      if (task.deadline) {
+        task.completedBeforeDeadline = new Date() <= new Date(task.deadline);
+      }
+    }
+
     await task.save();
+    await task.populate('assignedTo', 'name email role');
+    await task.populate('assignedBy', 'name email role');
 
     res.status(200).json({
       status: 'success',

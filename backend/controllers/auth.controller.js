@@ -2,11 +2,18 @@ const { validationResult } = require('express-validator');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User.model');
 
-// Generate JWT Token
-const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRE || '30d'
-  });
+// Generate JWT Token with userId and role
+const generateToken = (id, role) => {
+  return jwt.sign(
+    { 
+      id,
+      role 
+    }, 
+    process.env.JWT_SECRET, 
+    {
+      expiresIn: process.env.JWT_EXPIRE || '30d'
+    }
+  );
 };
 
 // @desc    Register new user
@@ -23,7 +30,7 @@ exports.register = async (req, res) => {
       });
     }
 
-    const { name, email, password } = req.body;
+    const { name, email, password, role } = req.body;
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -34,15 +41,26 @@ exports.register = async (req, res) => {
       });
     }
 
+    // HARDCODED: JheevaShankar is ALWAYS MANAGER
+    let assignedRole;
+    if (email === 'jheeva123@gmail.com') {
+      assignedRole = 'MANAGER';
+    } else {
+      // Determine role: First user becomes MANAGER, others become TEAM_MEMBER
+      const userCount = await User.countDocuments();
+      assignedRole = userCount === 0 ? 'MANAGER' : (role || 'TEAM_MEMBER');
+    }
+
     // Create user
     const user = await User.create({
       name,
       email,
-      password
+      password,
+      role: assignedRole
     });
 
-    // Generate token
-    const token = generateToken(user._id);
+    // Generate token with userId and role
+    const token = generateToken(user._id, user.role);
 
     res.status(201).json({
       status: 'success',
@@ -100,8 +118,14 @@ exports.login = async (req, res) => {
       });
     }
 
-    // Generate token
-    const token = generateToken(user._id);
+    // HARDCODED: Ensure jheeva123@gmail.com is ALWAYS MANAGER
+    if (user.email === 'jheeva123@gmail.com' && user.role !== 'MANAGER') {
+      user.role = 'MANAGER';
+      await user.save();
+    }
+
+    // Generate token with userId and role
+    const token = generateToken(user._id, user.role);
 
     res.status(200).json({
       status: 'success',

@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { User, Mail, Lock, UserPlus } from 'lucide-react';
+import { User, Mail, Lock, UserPlus, Users } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 const Register = () => {
   const navigate = useNavigate();
@@ -10,7 +11,8 @@ const Register = () => {
     name: '',
     email: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    role: 'TEAM_MEMBER'
   });
   const [loading, setLoading] = useState(false);
 
@@ -84,6 +86,28 @@ const Register = () => {
                 required
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Role
+            </label>
+            <div className="relative">
+              <Users className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <select
+                name="role"
+                value={formData.role}
+                onChange={handleChange}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                required
+              >
+                <option value="TEAM_MEMBER">Team Member</option>
+                <option value="MANAGER">Manager</option>
+              </select>
+            </div>
+            <p className="mt-1 text-xs text-gray-500">
+              Managers can create and assign tasks. Team members can only view and complete assigned tasks.
+            </p>
           </div>
 
           <div>

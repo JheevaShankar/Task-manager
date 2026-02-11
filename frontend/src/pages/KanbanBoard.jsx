@@ -8,9 +8,10 @@ import { format } from 'date-fns';
 
 const KanbanBoard = () => {
   const [columns, setColumns] = useState({
-    'Todo': [],
-    'In Progress': [],
-    'Done': []
+    'To-Do': [],
+    'In-Progress': [],
+    'Done': [],
+    'Overdue': []
   });
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -26,9 +27,10 @@ const KanbanBoard = () => {
       const tasks = response.data.data.tasks;
       
       const newColumns = {
-        'Todo': tasks.filter(t => t.status === 'Todo'),
-        'In Progress': tasks.filter(t => t.status === 'In Progress'),
-        'Done': tasks.filter(t => t.status === 'Done')
+        'To-Do': tasks.filter(t => t.status === 'To-Do'),
+        'In-Progress': tasks.filter(t => t.status === 'In-Progress'),
+        'Done': tasks.filter(t => t.status === 'Done'),
+        'Overdue': tasks.filter(t => t.status === 'Overdue')
       };
       
       setColumns(newColumns);

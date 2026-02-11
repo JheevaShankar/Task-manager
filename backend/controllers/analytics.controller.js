@@ -6,27 +6,30 @@ const Task = require('../models/Task.model');
 exports.getOverview = async (req, res) => {
   try {
     const userId = req.user._id;
+    const userRole = req.user.role;
+
+    // Build query based on role
+    const baseQuery = userRole === 'MANAGER' 
+      ? { assignedBy: userId, isArchived: false }
+      : { assignedTo: userId, isArchived: false };
 
     // Get task counts
-    const totalTasks = await Task.countDocuments({ user: userId, isArchived: false });
-    const completedTasks = await Task.countDocuments({ user: userId, status: 'Done', isArchived: false });
-    const inProgressTasks = await Task.countDocuments({ user: userId, status: 'In Progress', isArchived: false });
-    const todoTasks = await Task.countDocuments({ user: userId, status: 'Todo', isArchived: false });
+    const totalTasks = await Task.countDocuments(baseQuery);
+    const completedTasks = await Task.countDocuments({ ...baseQuery, status: 'Done' });
+    const inProgressTasks = await Task.countDocuments({ ...baseQuery, status: 'In-Progress' });
+    const todoTasks = await Task.countDocuments({ ...baseQuery, status: 'To-Do' });
 
     // Get overdue tasks
     const overdueTasks = await Task.countDocuments({
-      user: userId,
-      status: { $ne: 'Done' },
-      deadline: { $lt: new Date() },
-      isArchived: false
+      ...baseQuery,
+      status: 'Overdue'
     });
 
     // Get high priority tasks
     const highPriorityTasks = await Task.countDocuments({
-      user: userId,
+      ...baseQuery,
       priority: 'High',
-      status: { $ne: 'Done' },
-      isArchived: false
+      status: { $ne: 'Done' }
     });
 
     // Calculate completion rate
@@ -60,6 +63,7 @@ exports.getOverview = async (req, res) => {
 exports.getProductivity = async (req, res) => {
   try {
     const userId = req.user._id;
+    const userRole = req.user.role;
     const { period = '7d' } = req.query;
 
     // Calculate date range
@@ -67,9 +71,14 @@ exports.getProductivity = async (req, res) => {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 
+    // Build query based on role
+    const baseQuery = userRole === 'MANAGER' 
+      ? { assignedBy: userId }
+      : { assignedTo: userId };
+
     // Get completed tasks in period
     const completedTasks = await Task.find({
-      user: userId,
+      ...baseQuery,
       status: 'Done',
       completedAt: { $gte: startDate },
       isArchived: false
@@ -113,13 +122,16 @@ exports.getProductivity = async (req, res) => {
 exports.getPriorityDistribution = async (req, res) => {
   try {
     const userId = req.user._id;
+    const userRole = req.user.role;
+
+    // Build match condition based on role
+    const matchCondition = userRole === 'MANAGER'
+      ? { assignedBy: userId, isArchived: false }
+      : { assignedTo: userId, isArchived: false };
 
     const distribution = await Task.aggregate([
       {
-        $match: {
-          user: userId,
-          isArchived: false
-        }
+        $match: matchCondition
       },
       {
         $group: {
@@ -159,15 +171,21 @@ exports.getPriorityDistribution = async (req, res) => {
 exports.getCompletionRate = async (req, res) => {
   try {
     const userId = req.user._id;
+    const userRole = req.user.role;
     const { period = '30d' } = req.query;
 
     const days = parseInt(period) || 30;
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 
+    // Build query based on role
+    const baseQuery = userRole === 'MANAGER'
+      ? { assignedBy: userId }
+      : { assignedTo: userId };
+
     // Get tasks created in period
     const tasks = await Task.find({
-      user: userId,
+      ...baseQuery,
       createdAt: { $gte: startDate }
     }).select('createdAt status completedAt');
 
