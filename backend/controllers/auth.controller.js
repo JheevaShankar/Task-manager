@@ -1,6 +1,7 @@
 const { validationResult } = require('express-validator');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User.model');
+const Department = require('../models/Department.model');
 
 // Generate JWT Token with userId and role
 const generateToken = (id, role) => {
@@ -30,7 +31,7 @@ exports.register = async (req, res) => {
       });
     }
 
-    const { name, email, password, role } = req.body;
+    const { name, email, password, role, department } = req.body;
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -41,14 +42,44 @@ exports.register = async (req, res) => {
       });
     }
 
-    // HARDCODED: JheevaShankar is ALWAYS MANAGER
+    // If department is provided, validate and check member limit
+    let deptId = null;
+    if (department) {
+      const dept = await Department.findById(department);
+      if (!dept) {
+        return res.status(404).json({
+          status: 'error',
+          message: 'Department not found'
+        });
+      }
+
+      // Check if department is active
+      if (!dept.isActive) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'This department is currently inactive'
+        });
+      }
+
+      // Check member limit
+      if (dept.members.length >= dept.maxMembers) {
+        return res.status(400).json({
+          status: 'error',
+          message: `Department has reached maximum capacity (${dept.maxMembers} members)`
+        });
+      }
+
+      deptId = dept._id;
+    }
+
+    // HARDCODED: JheevaShankar is ALWAYS SUPER_ADMIN
     let assignedRole;
     if (email === 'jheeva123@gmail.com') {
-      assignedRole = 'MANAGER';
+      assignedRole = 'SUPER_ADMIN';
+      deptId = null; // Super admin doesn't belong to any department
     } else {
-      // Determine role: First user becomes MANAGER, others become TEAM_MEMBER
-      const userCount = await User.countDocuments();
-      assignedRole = userCount === 0 ? 'MANAGER' : (role || 'TEAM_MEMBER');
+      // All new registrations are TEAM_MEMBER by default
+      assignedRole = 'TEAM_MEMBER';
     }
 
     // Create user
@@ -56,8 +87,19 @@ exports.register = async (req, res) => {
       name,
       email,
       password,
-      role: assignedRole
+      role: assignedRole,
+      department: deptId
     });
+
+    // Add user to department members if department was selected
+    if (deptId) {
+      await Department.findByIdAndUpdate(deptId, {
+        $push: { members: user._id }
+      });
+    }
+
+    // Populate department for response
+    await user.populate('department', 'name color');
 
     // Generate token with userId and role
     const token = generateToken(user._id, user.role);
@@ -69,7 +111,8 @@ exports.register = async (req, res) => {
           id: user._id,
           name: user.name,
           email: user.email,
-          role: user.role
+          role: user.role,
+          department: user.department
         },
         token
       }
@@ -118,11 +161,15 @@ exports.login = async (req, res) => {
       });
     }
 
-    // HARDCODED: Ensure jheeva123@gmail.com is ALWAYS MANAGER
-    if (user.email === 'jheeva123@gmail.com' && user.role !== 'MANAGER') {
-      user.role = 'MANAGER';
+    // HARDCODED: Ensure jheeva123@gmail.com is ALWAYS SUPER_ADMIN
+    if (user.email === 'jheeva123@gmail.com' && user.role !== 'SUPER_ADMIN') {
+      user.role = 'SUPER_ADMIN';
+      user.department = null; // Super admin has no department
       await user.save();
     }
+
+    // Populate department info
+    await user.populate('department', 'name color');
 
     // Generate token with userId and role
     const token = generateToken(user._id, user.role);
@@ -134,7 +181,8 @@ exports.login = async (req, res) => {
           id: user._id,
           name: user.name,
           email: user.email,
-          role: user.role
+          role: user.role,
+          department: user.department
         },
         token
       }
@@ -152,7 +200,7 @@ exports.login = async (req, res) => {
 // @access  Private
 exports.getMe = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
+    const user = await User.findById(req.user._id).populate('department', 'name color');
 
     res.status(200).json({
       status: 'success',

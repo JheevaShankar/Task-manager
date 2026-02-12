@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { authAPI } from '../services/api';
 import toast from 'react-hot-toast';
 
@@ -18,7 +19,16 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     checkAuth();
-  }, []);
+    
+    // Set up role change detection (check every 30 seconds)
+    const roleCheckInterval = setInterval(() => {
+      if (user) {
+        checkForRoleChange();
+      }
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(roleCheckInterval);
+  }, [user]);
 
   const checkAuth = async () => {
     const token = localStorage.getItem('token');
@@ -31,6 +41,56 @@ export const AuthProvider = ({ children }) => {
       }
     }
     setLoading(false);
+  };
+
+  const checkForRoleChange = async () => {
+    const token = localStorage.getItem('token');
+    if (!token || !user) return;
+
+    try {
+      const response = await authAPI.getMe();
+      const latestUser = response.data.data.user;
+      
+      // Check if role has changed
+      if (latestUser.role !== user.role) {
+        const oldRole = user.role;
+        const newRole = latestUser.role;
+        
+        // Update user state
+        setUser(latestUser);
+        
+        // Show notification based on promotion/demotion
+        if (newRole === 'MANAGER' && oldRole === 'TEAM_MEMBER') {
+          toast.success('🎉 Congratulations! You have been promoted to Manager!', { duration: 5000 });
+        } else if (newRole === 'TEAM_MEMBER' && oldRole === 'MANAGER') {
+          toast.info('Your role has been changed to Team Member', { duration: 5000 });
+        } else if (newRole === 'SUPER_ADMIN') {
+          toast.success('🎉 You have been promoted to Super Admin!', { duration: 5000 });
+        }
+        
+        // Redirect to appropriate dashboard
+        setTimeout(() => {
+          const dashboardRoute = getDashboardRoute(newRole);
+          window.location.href = dashboardRoute; // Force full page reload
+        }, 2000);
+      }
+    } catch (error) {
+      // Silently handle errors in background check
+      console.error('Role check error:', error);
+    }
+  };
+
+  const getDashboardRoute = (role) => {
+    switch (role) {
+      case 'SUPER_ADMIN':
+        return '/admin/dashboard';
+      case 'MANAGER':
+        return '/manager/dashboard';
+      case 'TEAM_MEMBER':
+        return '/team/dashboard';
+      default:
+        return '/login';
+    }
   };
 
   const login = async (credentials) => {
@@ -72,7 +132,8 @@ export const AuthProvider = ({ children }) => {
     loading,
     login,
     register,
-    logout
+    logout,
+    refreshUser: checkAuth // Expose for manual refresh
   };
 
   return (

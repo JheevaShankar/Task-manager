@@ -14,6 +14,7 @@ const userRoutes = require('./routes/user.routes');
 const analyticsRoutes = require('./routes/analytics.routes');
 const notificationRoutes = require('./routes/notification.routes');
 const teamRoutes = require('./routes/team.routes');
+const departmentRoutes = require('./routes/department.routes');
 
 // Import services
 const { checkDeadlines } = require('./services/notification.service');
@@ -43,6 +44,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/team', teamRoutes);
+app.use('/api/departments', departmentRoutes);
 
 // Health check route
 app.get('/api/health', (req, res) => {

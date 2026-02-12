@@ -1,22 +1,49 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LayoutDashboard, KanbanSquare, BarChart3, LogOut, User, ClipboardCheck } from 'lucide-react';
+import { LayoutDashboard, KanbanSquare, BarChart3, LogOut, User, ClipboardCheck, Building2 } from 'lucide-react';
 
 const Layout = () => {
   const { user, logout } = useAuth();
   const location = useLocation();
 
   // Navigation based on role
-  const navigation = user?.role === 'MANAGER' 
-    ? [
+  const getNavigation = () => {
+    if (user?.role === 'SUPER_ADMIN') {
+      return [
+        { name: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
+        { name: 'Kanban Board', path: '/admin/kanban', icon: KanbanSquare },
+        { name: 'Analytics', path: '/admin/analytics', icon: BarChart3 }
+      ];
+    } else if (user?.role === 'MANAGER') {
+      return [
         { name: 'Dashboard', path: '/manager/dashboard', icon: LayoutDashboard },
         { name: 'Kanban Board', path: '/manager/kanban', icon: KanbanSquare },
         { name: 'Review Submissions', path: '/manager/review', icon: ClipboardCheck },
         { name: 'Analytics', path: '/manager/analytics', icon: BarChart3 }
-      ]
-    : [
+      ];
+    } else {
+      return [
         { name: 'My Tasks', path: '/team/dashboard', icon: LayoutDashboard }
       ];
+    }
+  };
+
+  const navigation = getNavigation();
+
+  const getRoleBadge = () => {
+    switch (user?.role) {
+      case 'SUPER_ADMIN':
+        return { label: 'Super Admin', color: 'bg-purple-100 text-purple-700' };
+      case 'MANAGER':
+        return { label: 'Manager', color: 'bg-primary-100 text-primary-700' };
+      case 'TEAM_MEMBER':
+        return { label: 'Team Member', color: 'bg-green-100 text-green-700' };
+      default:
+        return { label: user?.role, color: 'bg-gray-100 text-gray-700' };
+    }
+  };
+
+  const roleBadge = getRoleBadge();
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -35,8 +62,8 @@ const Layout = () => {
                 <User className="w-5 h-5 text-gray-500" />
                 <div>
                   <span className="text-sm font-medium text-gray-700">{user?.name}</span>
-                  <span className="ml-2 text-xs px-2 py-1 rounded-full bg-primary-100 text-primary-700">
-                    {user?.role === 'MANAGER' ? 'Manager' : 'Team Member'}
+                  <span className={`ml-2 text-xs px-2 py-1 rounded-full ${roleBadge.color}`}>
+                    {roleBadge.label}
                   </span>
                 </div>
               </div>

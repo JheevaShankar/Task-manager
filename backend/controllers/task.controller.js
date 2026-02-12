@@ -16,15 +16,26 @@ exports.getTasks = async (req, res) => {
   try {
     const { status, priority, category, search, sortBy } = req.query;
 
-    // Build query based on role
+    // Build query based on role and department
     let query = { isArchived: false };
 
-    if (req.user.role === 'MANAGER') {
-      // Managers see all tasks they created
-      query.assignedBy = req.user._id;
+    if (req.user.role === 'SUPER_ADMIN') {
+      // Super admin sees ALL tasks
+      // No additional filter needed
+    } else if (req.user.role === 'MANAGER') {
+      // Managers see tasks from their department
+      if (req.user.department) {
+        query.department = req.user.department;
+      } else {
+        // If manager has no department, show tasks they assigned
+        query.assignedBy = req.user._id;
+      }
     } else {
-      // Team members only see tasks assigned to them
+      // Team members only see tasks assigned to them in their department
       query.assignedTo = req.user._id;
+      if (req.user.department) {
+        query.department = req.user.department;
+      }
     }
 
     if (status) query.status = status;
@@ -49,8 +60,9 @@ exports.getTasks = async (req, res) => {
 
     let tasks = await Task.find(query)
       .sort(sort)
-      .populate('assignedTo', 'name email role')
-      .populate('assignedBy', 'name email role');
+      .populate('assignedTo', 'name email role department')
+      .populate('assignedBy', 'name email role department')
+      .populate('department', 'name color');
 
     // Check and update overdue tasks
     tasks = tasks.map(task => {
@@ -79,8 +91,9 @@ exports.getTasks = async (req, res) => {
 exports.getTask = async (req, res) => {
   try {
     const task = await Task.findById(req.params.id)
-      .populate('assignedBy', 'name email role')
-      .populate('assignedTo', 'name email role')
+      .populate('assignedBy', 'name email role department')
+      .populate('assignedTo', 'name email role department')
+      .populate('department', 'name color')
       .populate('comments.user', 'name email');
 
     if (!task) {
@@ -90,11 +103,12 @@ exports.getTask = async (req, res) => {
       });
     }
 
-    // Check authorization: Manager who created it or team member assigned to it
+    // Check authorization: Super Admin, Manager who created it, or team member assigned to it
+    const isSuperAdmin = req.user.role === 'SUPER_ADMIN';
     const isManager = req.user.role === 'MANAGER' && task.assignedBy._id.toString() === req.user._id.toString();
     const isAssignedTeamMember = req.user.role === 'TEAM_MEMBER' && task.assignedTo._id.toString() === req.user._id.toString();
 
-    if (!isManager && !isAssignedTeamMember) {
+    if (!isSuperAdmin && !isManager && !isAssignedTeamMember) {
       return res.status(403).json({
         status: 'error',
         message: 'Not authorized to access this task'
@@ -123,11 +137,11 @@ exports.getTask = async (req, res) => {
 // @access  Private (Manager)
 exports.createTask = async (req, res) => {
   try {
-    // Only managers can create tasks
-    if (req.user.role !== 'MANAGER') {
+    // Only managers and super admins can create tasks
+    if (req.user.role !== 'MANAGER' && req.user.role !== 'SUPER_ADMIN') {
       return res.status(403).json({
         status: 'error',
-        message: 'Only managers can create tasks'
+        message: 'Only managers and super admins can create tasks'
       });
     }
 
@@ -151,10 +165,16 @@ exports.createTask = async (req, res) => {
     // Set user and assignedBy
     req.body.user = req.user._id;
     req.body.assignedBy = req.user._id;
+    
+    // Automatically set department based on manager's department
+    if (req.user.department) {
+      req.body.department = req.user.department;
+    }
 
     const task = await Task.create(req.body);
-    await task.populate('assignedTo', 'name email role');
-    await task.populate('assignedBy', 'name email role');
+    await task.populate('assignedTo', 'name email role department');
+    await task.populate('assignedBy', 'name email role department');
+    await task.populate('department', 'name color');
 
     res.status(201).json({
       status: 'success',
@@ -184,8 +204,11 @@ exports.updateTask = async (req, res) => {
       });
     }
 
-    // Only manager who created the task can update it
-    if (req.user.role !== 'MANAGER' || task.assignedBy.toString() !== req.user._id.toString()) {
+    // Only super admin or manager who created the task can update it
+    const isSuperAdmin = req.user.role === 'SUPER_ADMIN';
+    const isTaskManager = req.user.role === 'MANAGER' && task.assignedBy.toString() === req.user._id.toString();
+    
+    if (!isSuperAdmin && !isTaskManager) {
       return res.status(403).json({
         status: 'error',
         message: 'Only the manager who created this task can update it'
@@ -195,7 +218,10 @@ exports.updateTask = async (req, res) => {
     task = await Task.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
       runValidators: true
-    }).populate('assignedTo', 'name email role').populate('assignedBy', 'name email role');
+    })
+      .populate('assignedTo', 'name email role department')
+      .populate('assignedBy', 'name email role department')
+      .populate('department', 'name color');
 
     res.status(200).json({
       status: 'success',

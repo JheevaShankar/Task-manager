@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { User, Mail, Lock, UserPlus, Users } from 'lucide-react';
+import { User, Mail, Lock, UserPlus, Building2 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import api from '../services/api';
 
 const Register = () => {
   const navigate = useNavigate();
@@ -12,9 +13,30 @@ const Register = () => {
     email: '',
     password: '',
     confirmPassword: '',
-    role: 'TEAM_MEMBER'
+    department: ''
   });
+  const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [fetchingDepts, setFetchingDepts] = useState(true);
+
+  useEffect(() => {
+    fetchDepartments();
+  }, []);
+
+  const fetchDepartments = async () => {
+    try {
+      console.log('Fetching departments...');
+      const response = await api.get('/departments');
+      console.log('Departments response:', response.data);
+      setDepartments(response.data.data || []);
+    } catch (error) {
+      console.error('Error fetching departments:', error);
+      console.error('Error response:', error.response);
+      toast.error('Failed to load departments. Please refresh the page.');
+    } finally {
+      setFetchingDepts(false);
+    }
+  };
 
   const handleChange = (e) => {
     setFormData({
@@ -30,17 +52,27 @@ const Register = () => {
       toast.error('Passwords do not match');
       return;
     }
+
+    if (!formData.department) {
+      toast.error('Please select a department');
+      return;
+    }
     
     setLoading(true);
     
-    const { confirmPassword, ...registerData } = formData;
-    const success = await register(registerData);
-    
-    if (success) {
-      navigate('/dashboard');
+    try {
+      const { confirmPassword, ...registerData } = formData;
+      const success = await register(registerData);
+      
+      if (success) {
+        // Use window.location for full page reload to ensure auth state is fresh
+        window.location.href = '/team/dashboard';
+      }
+    } catch (error) {
+      console.error('Registration error:', error);
+    } finally {
+      setLoading(false);
     }
-    
-    setLoading(false);
   };
 
   return (
@@ -90,28 +122,6 @@ const Register = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Role
-            </label>
-            <div className="relative">
-              <Users className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <select
-                name="role"
-                value={formData.role}
-                onChange={handleChange}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                required
-              >
-                <option value="TEAM_MEMBER">Team Member</option>
-                <option value="MANAGER">Manager</option>
-              </select>
-            </div>
-            <p className="mt-1 text-xs text-gray-500">
-              Managers can create and assign tasks. Team members can only view and complete assigned tasks.
-            </p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
               Password
             </label>
             <div className="relative">
@@ -145,6 +155,47 @@ const Register = () => {
                 required
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Select Department
+            </label>
+            <div className="relative">
+              <Building2 className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <select
+                name="department"
+                value={formData.department}
+                onChange={handleChange}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white"
+                required
+                disabled={fetchingDepts}
+              >
+                <option value="">
+                  {fetchingDepts ? 'Loading departments...' : 'Choose a department'}
+                </option>
+                {departments.map((dept) => {
+                  const memberCount = dept.members?.length || 0;
+                  const maxMembers = dept.maxMembers || 5;
+                  const isFull = memberCount >= maxMembers;
+                  
+                  return (
+                    <option 
+                      key={dept._id} 
+                      value={dept._id}
+                      disabled={isFull}
+                    >
+                      {dept.name} ({memberCount}/{maxMembers}) {isFull ? '- FULL' : ''}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+            {departments.length === 0 && !fetchingDepts && (
+              <p className="mt-1 text-sm text-amber-600">
+                No departments available. Please contact the administrator.
+              </p>
+            )}
           </div>
 
           <button

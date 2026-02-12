@@ -23,13 +23,19 @@ const Login = () => {
     e.preventDefault();
     setLoading(true);
     
-    const success = await login(formData);
-    
-    if (success) {
-      navigate('/dashboard');
+    try {
+      const success = await login(formData);
+      
+      if (success) {
+        // Let the auth context handle the redirect
+        // The App.jsx will automatically redirect based on user role
+        window.location.reload();
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+    } finally {
+      setLoading(false);
     }
-    
-    setLoading(false);
   };
 
   return (
